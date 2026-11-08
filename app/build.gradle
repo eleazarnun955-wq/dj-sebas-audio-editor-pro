@@ -4,11 +4,11 @@ android {
     namespace 'com.djsebas.audioeditor'
     compileSdk 35
     defaultConfig {
-        // Identificador independiente para instalar esta edición MP3 junto a la anterior.
-        applicationId 'com.djsebas.audioeditor.mp3'
+        // ID exclusivo para evitar choques con instalaciones anteriores y conservarlas intactas.
+        applicationId 'com.djsebas.audioeditor.mp3edition'
         minSdk 23
         targetSdk 35
-        versionCode 2
-        versionName '1.1'
+        versionCode 3
+        versionName '1.2'
     }
 }
