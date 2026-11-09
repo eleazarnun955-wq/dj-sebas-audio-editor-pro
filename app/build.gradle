@@ -1,7 +1,7 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'com.djsebas.producciones'
+    namespace 'com.djsebas.audioeditor'
     compileSdk 35
     defaultConfig {
         // Paquete nuevo e independiente: conserva instalada la edición MP3 2 anterior.
