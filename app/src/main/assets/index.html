@@ -83,27 +83,66 @@ const saveBtn=document.createElement('button');saveBtn.className='export';saveBt
  });
  $('mixCross').addEventListener('input',()=>{$('mixCrossVal').textContent=$('mixCross').value+' s'});
  function sayMix(t){if(typeof msg==='function')msg(t);else $('status').textContent=t}
- function encodeMp3(b){
-   return new Promise((resolve,reject)=>{
-     try{
-       if(typeof lamejs==='undefined')throw new Error('No se encontró el codificador MP3');
-       const encoder=new lamejs.Mp3Encoder(2,44100,192),chunks=[],left=b.getChannelData(0),right=b.getChannelData(1),block=1152;
-       for(let i=0;i<left.length;i+=block){
-         const n=Math.min(block,left.length-i),l=new Int16Array(n),r=new Int16Array(n);
-         for(let j=0;j<n;j++){l[j]=Math.max(-32768,Math.min(32767,left[i+j]*32767));r[j]=Math.max(-32768,Math.min(32767,right[i+j]*32767))}
-         const data=encoder.encodeBuffer(l,r);if(data.length)chunks.push(new Uint8Array(data));
-       }
-       const tail=encoder.flush();if(tail.length)chunks.push(new Uint8Array(tail));
-       resolve(new Blob(chunks,{type:'audio/mpeg'}));
-     }catch(e){reject(e)}
-   });
+ const sampleRate=44100;
+ let encoder=null,pendingParts=[],pendingSize=0,saveStarted=false;
+ function queueEncoded(data){
+   if(data&&data.length){const copy=new Uint8Array(data);pendingParts.push(copy);pendingSize+=copy.length;}
+   if(pendingSize>=256*1024)flushPending();
  }
- async function saveMix(blob,name){
-   if(!window.AndroidExport||typeof AndroidExport.saveMp3!=='function')throw new Error('La función de guardado directo no está disponible en esta versión Android');
-   const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');reader.onerror=()=>reject(new Error('No se pudo preparar el MP3'));reader.readAsDataURL(blob)});
-   const result=AndroidExport.saveMp3(base64,name);
-   if(!result||!result.startsWith('OK|'))throw new Error(result?result.replace(/^ERROR\|/,''):'Android no confirmó el guardado');
-   return result.substring(3);
+ function flushPending(){
+   if(!pendingSize)return;
+   const joined=new Uint8Array(pendingSize);let offset=0;
+   for(const part of pendingParts){joined.set(part,offset);offset+=part.length;}
+   let binary='';
+   for(let i=0;i<joined.length;i+=24576)binary+=String.fromCharCode.apply(null,joined.subarray(i,Math.min(i+24576,joined.length)));
+   const result=AndroidExport.appendMp3Chunk(btoa(binary));
+   if(!result||!result.startsWith('OK|'))throw new Error(result?result.replace(/^ERROR\|/,''):'Android no confirmó la escritura del MP3');
+   pendingParts=[];pendingSize=0;
+ }
+ function appendRenderedAudio(b){
+   const left=b.getChannelData(0),right=b.getChannelData(1),block=1152;
+   for(let i=0;i<left.length;i+=block){
+     const n=Math.min(block,left.length-i),l=new Int16Array(n),r=new Int16Array(n);
+     for(let j=0;j<n;j++){l[j]=Math.max(-32768,Math.min(32767,left[i+j]*32767));r[j]=Math.max(-32768,Math.min(32767,right[i+j]*32767));}
+     queueEncoded(encoder.encodeBuffer(l,r));
+   }
+ }
+ async function renderSolo(b,offset,duration){
+   if(duration<=0.02)return;
+   const off=new OfflineAudioContext(2,Math.max(1,Math.ceil(duration*sampleRate)),sampleRate);
+   const src=off.createBufferSource();src.buffer=b;src.connect(off.destination);src.start(0,offset,duration);
+   appendRenderedAudio(await off.startRendering());
+ }
+ async function renderCrossfade(a,b,duration){
+   if(duration<=0.02)return;
+   const off=new OfflineAudioContext(2,Math.max(1,Math.ceil(duration*sampleRate)),sampleRate);
+   const sa=off.createBufferSource(),ga=off.createGain(),sb=off.createBufferSource(),gb=off.createGain();
+   sa.buffer=a;sb.buffer=b;
+   ga.gain.setValueAtTime(1,0);ga.gain.linearRampToValueAtTime(0,duration);
+   gb.gain.setValueAtTime(0,0);gb.gain.linearRampToValueAtTime(1,duration);
+   sa.connect(ga).connect(off.destination);sb.connect(gb).connect(off.destination);
+   sa.start(0,Math.max(0,a.duration-duration),duration);sb.start(0,0,duration);
+   appendRenderedAudio(await off.startRendering());
+ }
+ function startStreamSave(name){
+   if(!window.AndroidExport||typeof AndroidExport.beginMp3!=='function'||typeof AndroidExport.appendMp3Chunk!=='function'||typeof AndroidExport.finishMp3!=='function')throw new Error('La exportación directa por partes no está disponible en esta versión Android');
+   const result=AndroidExport.beginMp3(name);
+   if(!result||!result.startsWith('OK|'))throw new Error(result?result.replace(/^ERROR\|/,''):'Android no pudo crear el archivo MP3');
+   saveStarted=true;return result.substring(3);
+ }
+ function finishStreamSave(){
+   flushPending();
+   const result=AndroidExport.finishMp3();
+   if(!result||!result.startsWith('OK|'))throw new Error(result?result.replace(/^ERROR\|/,''):'Android no confirmó el archivo terminado');
+   saveStarted=false;return result.substring(3);
+ }
+ function abortStreamSave(){
+   if(saveStarted&&window.AndroidExport&&typeof AndroidExport.abortMp3==='function')try{AndroidExport.abortMp3()}catch(e){}
+   saveStarted=false;pendingParts=[];pendingSize=0;
+ }
+ async function decodeTrack(file,audioCtx,index,total){
+   sayMix('Decodificando canción '+index+' de '+total+'…');
+   return await audioCtx.decodeAudioData(await file.arrayBuffer());
  }
  button.addEventListener('click',async()=>{
    if(!selected.length)return sayMix('Selecciona al menos una canción');
@@ -111,40 +150,41 @@ const saveBtn=document.createElement('button');saveBtn.className='export';saveBt
    button.disabled=true;button.textContent='⏳ PROCESANDO MIX…';
    try{
      const audioCtx=ctx||(ctx=new(window.AudioContext||window.webkitAudioContext)());
-     sayMix('Leyendo '+selected.length+' canciones…');
-     const decoded=[];
-     for(let i=0;i<selected.length;i++){
-       sayMix('Cargando canción '+(i+1)+' de '+selected.length+'…');
-       decoded.push(await audioCtx.decodeAudioData(await selected[i].arrayBuffer()));
-     }
-     const cross=Number($('mixCross').value)||4;
-     const starts=[],overlaps=[];let total=0;
-     decoded.forEach((b,i)=>{
-       const overlap=i?Math.min(cross,decoded[i-1].duration*.2,b.duration*.2):0;
-       overlaps.push(overlap);starts.push(total-overlap);total=starts[i]+b.duration;
-     });
-     const sr=44100,length=Math.ceil(total*sr);
-     if(!Number.isFinite(length)||length<1||length>sr*60*60*4)throw new Error('El mix supera el límite seguro de 4 horas');
-     sayMix('Mezclando y aplicando transiciones…');
-     const off=new OfflineAudioContext(2,length,sr),master=off.createDynamicsCompressor();
-     master.threshold.value=-8;master.knee.value=12;master.ratio.value=2.5;master.attack.value=.015;master.release.value=.25;master.connect(off.destination);
-     decoded.forEach((b,i)=>{
-       const source=off.createBufferSource(),gain=off.createGain(),start=starts[i],end=start+b.duration,fadeIn=overlaps[i];
-       source.buffer=b;source.connect(gain).connect(master);
-       if(i===0)gain.gain.setValueAtTime(1,start);
-       else {gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(1,start+fadeIn)}
-       if(i<decoded.length-1){const fadeOut=Math.min(cross,b.duration*.2,decoded[i+1].duration*.2);gain.gain.setValueAtTime(1,end-fadeOut);gain.gain.linearRampToValueAtTime(0,end)}
-       source.start(start);
-     });
-     const mixed=await off.startRendering();
-     sayMix('Codificando MP3 a 192 kbps…');
-     const blob=await encodeMp3(mixed);
-     if(!blob.size)throw new Error('El MP3 resultó vacío');
+     if(typeof lamejs==='undefined')throw new Error('No se encontró el codificador MP3');
+     encoder=new lamejs.Mp3Encoder(2,sampleRate,192);pendingParts=[];pendingSize=0;
      const safe='DJ_SEBAS_MIX_TERMINADO_'+new Date().toISOString().replace(/[:.]/g,'-')+'.mp3';
-     const path=await saveMix(blob,safe);
-     sayMix('¡MIX TERMINADO! '+selected.length+' canciones · '+Math.floor(mixed.duration/60)+' min · Guardado en '+path);
+     const path=startStreamSave(safe);
+     const cross=Number($('mixCross').value)||4;
+     let totalDuration=0,incomingFade=0;
+     let current=await decodeTrack(selected[0],audioCtx,1,selected.length);
+     totalDuration+=current.duration;
+     if(totalDuration>5400)throw new Error('El mix supera el límite seguro de 90 minutos');
+     for(let i=1;i<selected.length;i++){
+       const next=await decodeTrack(selected[i],audioCtx,i+1,selected.length);
+       totalDuration+=next.duration;
+       if(totalDuration>5400)throw new Error('El mix supera el límite seguro de 90 minutos');
+       const fade=Math.min(cross,current.duration*.2,next.duration*.2);
+       const soloDuration=current.duration-incomingFade-fade;
+       if(soloDuration>0.02){
+         sayMix('Procesando tramo '+i+' de '+selected.length+'…');
+         await renderSolo(current,incomingFade,soloDuration);
+       }
+       sayMix('Aplicando transición '+i+' de '+(selected.length-1)+'…');
+       await renderCrossfade(current,next,fade);
+       current=next;incomingFade=fade;
+     }
+     const lastDuration=current.duration-incomingFade;
+     if(lastDuration>0.02){sayMix('Procesando última canción…');await renderSolo(current,incomingFade,lastDuration);}
+     const tail=encoder.flush();queueEncoded(tail);
+     const savedPath=finishStreamSave();
+     encoder=null;
+     sayMix('¡MIX TERMINADO! '+selected.length+' canciones · '+Math.floor((totalDuration/60))+' min aprox. · Guardado en '+savedPath);
      button.textContent='✓ MIX TERMINADO · CREAR OTRO';
-   }catch(e){sayMix('No se pudo completar el mix: '+(e.message||e));button.textContent='🔥 CREAR MIX TERMINADO Y EXPORTAR MP3'}
+   }catch(e){
+     abortStreamSave();encoder=null;
+     sayMix('No se pudo completar el mix: '+(e.message||e));
+     button.textContent='🔥 CREAR MIX TERMINADO Y EXPORTAR MP3';
+   }
    finally{button.disabled=false}
  });
 })();
