@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
         ContentValues values = new ContentValues();
         values.put(MediaStore.Audio.Media.DISPLAY_NAME, safeName);
         values.put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg");
-        values.put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/DJ SEBAS AUDIO EDITOR PRO");
+        values.put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/DJ SEBAS PRO 3.0");
         values.put(MediaStore.Audio.Media.IS_PENDING, 1);
         savedUri = getContentResolver().insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values);
         if (savedUri == null) return "ERROR|Android no pudo crear el archivo MP3.";
@@ -53,7 +53,7 @@ public class MainActivity extends Activity {
         ContentValues ready = new ContentValues();
         ready.put(MediaStore.Audio.Media.IS_PENDING, 0);
         getContentResolver().update(savedUri, ready, null, null);
-        return "OK|Music/DJ SEBAS AUDIO EDITOR PRO/" + safeName;
+        return "OK|Music/DJ SEBAS PRO 3.0/" + safeName;
       } catch (Exception e) {
         if (savedUri != null) getContentResolver().delete(savedUri, null, null);
         String message = e.getMessage() == null ? "Error desconocido" : e.getMessage().replace("|", " ");
@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
     public String listMp3() {
       JSONArray files = new JSONArray();
       if (Build.VERSION.SDK_INT < 29) return files.toString();
-      String folder = "Music/DJ SEBAS AUDIO EDITOR PRO/";
+      String folder = "Music/DJ SEBAS PRO 3.0/";
       String[] projection = {
         MediaStore.Audio.Media.DISPLAY_NAME,
         MediaStore.Audio.Media.SIZE,
