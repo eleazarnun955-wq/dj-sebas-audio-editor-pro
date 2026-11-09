@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
         ContentValues values = new ContentValues();
         values.put(MediaStore.Audio.Media.DISPLAY_NAME, safeName);
         values.put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg");
-        values.put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/DJ SEBAS PRO 3.0");
+        values.put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/DJ SEBAS PRODUCCIONES");
         values.put(MediaStore.Audio.Media.IS_PENDING, 1);
         savedUri = getContentResolver().insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values);
         if (savedUri == null) return "ERROR|Android no pudo crear el archivo MP3.";
@@ -57,7 +57,7 @@ public class MainActivity extends Activity {
         ContentValues ready = new ContentValues();
         ready.put(MediaStore.Audio.Media.IS_PENDING, 0);
         getContentResolver().update(savedUri, ready, null, null);
-        return "OK|Music/DJ SEBAS PRO 3.0/" + safeName;
+        return "OK|Music/DJ SEBAS PRODUCCIONES/" + safeName;
       } catch (Exception e) {
         if (savedUri != null) getContentResolver().delete(savedUri, null, null);
         String message = e.getMessage() == null ? "Error desconocido" : e.getMessage().replace("|", " ");
@@ -74,13 +74,13 @@ public class MainActivity extends Activity {
         ContentValues values = new ContentValues();
         values.put(MediaStore.Audio.Media.DISPLAY_NAME, safeName);
         values.put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg");
-        values.put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/DJ SEBAS PRO 3.0");
+        values.put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/DJ SEBAS PRODUCCIONES");
         values.put(MediaStore.Audio.Media.IS_PENDING, 1);
         streamingUri = getContentResolver().insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values);
         if (streamingUri == null) return "ERROR|Android no pudo crear el MP3.";
         streamingOutput = getContentResolver().openOutputStream(streamingUri);
         if (streamingOutput == null) throw new Exception("No se pudo abrir el archivo MP3.");
-        streamingPath = "Music/DJ SEBAS PRO 3.0/" + safeName;
+        streamingPath = "Music/DJ SEBAS PRODUCCIONES/" + safeName;
         return "OK|" + streamingPath;
       } catch (Exception e) {
         abortMp3Internal();
@@ -140,7 +140,7 @@ public class MainActivity extends Activity {
     public String listMp3() {
       JSONArray files = new JSONArray();
       if (Build.VERSION.SDK_INT < 29) return files.toString();
-      String folder = "Music/DJ SEBAS PRO 3.0/";
+      String folder = "Music/DJ SEBAS PRODUCCIONES/";
       String[] projection = {
         MediaStore.Audio.Media.DISPLAY_NAME,
         MediaStore.Audio.Media.SIZE,
