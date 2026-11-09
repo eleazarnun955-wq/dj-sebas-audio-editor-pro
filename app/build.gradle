@@ -5,10 +5,10 @@ android {
     compileSdk 35
     defaultConfig {
         // Paquete nuevo e independiente: conserva instalada la edición MP3 2 anterior.
-        applicationId 'com.djsebas.audioeditor.mp3edition211'
+        applicationId 'com.djsebas.aimusicstudio.pro3'
         minSdk 23
         targetSdk 35
-        versionCode 1
-        versionName '2.1.1'
+        versionCode 30
+        versionName '3.0.0'
     }
 }
