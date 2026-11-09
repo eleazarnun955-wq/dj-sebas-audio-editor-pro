@@ -1,18 +1,22 @@
 package com.djsebas.audioeditor;
 
-import android.Manifest;
 import android.app.Activity;
-import android.content.Intent;
-import android.content.pm.PackageManager;
+import android.content.ContentValues;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.util.Base64;
+import java.io.OutputStream;
 
 public class MainActivity extends Activity {
   private static final int FILE_CHOOSER = 101;
@@ -20,6 +24,39 @@ public class MainActivity extends Activity {
   private ValueCallback<Uri[]> fileCallback;
   private PermissionRequest pendingPermission;
   private WebView web;
+
+  public class ExportBridge {
+    @JavascriptInterface
+    public String saveMp3(String base64, String requestedName) {
+      Uri savedUri = null;
+      try {
+        if (Build.VERSION.SDK_INT < 29) return "ERROR|Se requiere Android 10 o posterior para guardar en la carpeta de música.";
+        String safeName = requestedName == null ? "DJ_SEBAS_AUDIO.mp3" : requestedName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        if (!safeName.toLowerCase().endsWith(".mp3")) safeName += ".mp3";
+        byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Audio.Media.DISPLAY_NAME, safeName);
+        values.put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg");
+        values.put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/DJ SEBAS AUDIO EDITOR PRO");
+        values.put(MediaStore.Audio.Media.IS_PENDING, 1);
+        savedUri = getContentResolver().insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values);
+        if (savedUri == null) return "ERROR|Android no pudo crear el archivo MP3.";
+        try (OutputStream out = getContentResolver().openOutputStream(savedUri)) {
+          if (out == null) throw new Exception("No se pudo abrir el archivo de destino");
+          out.write(bytes);
+          out.flush();
+        }
+        ContentValues ready = new ContentValues();
+        ready.put(MediaStore.Audio.Media.IS_PENDING, 0);
+        getContentResolver().update(savedUri, ready, null, null);
+        return "OK|Music/DJ SEBAS AUDIO EDITOR PRO/" + safeName;
+      } catch (Exception e) {
+        if (savedUri != null) getContentResolver().delete(savedUri, null, null);
+        String message = e.getMessage() == null ? "Error desconocido" : e.getMessage().replace("|", " ");
+        return "ERROR|" + message;
+      }
+    }
+  }
 
   @Override public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -29,7 +66,9 @@ public class MainActivity extends Activity {
     s.setJavaScriptEnabled(true);
     s.setDomStorageEnabled(true);
     s.setAllowFileAccess(true);
+    s.setAllowContentAccess(true);
     s.setMediaPlaybackRequiresUserGesture(false);
+    web.addJavascriptInterface(new ExportBridge(), "AndroidExport");
     web.setWebViewClient(new WebViewClient());
     web.setWebChromeClient(new WebChromeClient() {
       @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
