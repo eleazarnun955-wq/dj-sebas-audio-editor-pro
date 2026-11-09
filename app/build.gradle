@@ -1,14 +1,14 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'com.djsebas.audioeditor'
+    namespace 'com.djsebas.producciones'
     compileSdk 35
     defaultConfig {
         // Paquete nuevo e independiente: conserva instalada la edición MP3 2 anterior.
-        applicationId 'com.djsebas.aimusicstudio.pro3'
+        applicationId 'com.djsebas.producciones'
         minSdk 23
         targetSdk 35
-        versionCode 32
-        versionName '3.0.2'
+        versionCode 1
+        versionName '1.0.0'
     }
 }
