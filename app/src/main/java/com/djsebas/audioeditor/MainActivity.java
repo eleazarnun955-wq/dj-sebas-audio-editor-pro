@@ -2,6 +2,9 @@ package com.djsebas.audioeditor;
 
 import android.app.Activity;
 import android.content.ContentValues;
+import android.database.Cursor;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -57,6 +60,40 @@ public class MainActivity extends Activity {
         return "ERROR|" + message;
       }
     }
+  }
+
+  @JavascriptInterface
+  public String listMp3() {
+    JSONArray files = new JSONArray();
+    if (Build.VERSION.SDK_INT < 29) return files.toString();
+    String folder = "Music/DJ SEBAS AUDIO EDITOR PRO/";
+    String[] projection = {
+      MediaStore.Audio.Media.DISPLAY_NAME,
+      MediaStore.Audio.Media.SIZE,
+      MediaStore.Audio.Media.DATE_ADDED
+    };
+    try (Cursor cursor = getContentResolver().query(
+        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+        projection,
+        MediaStore.MediaColumns.RELATIVE_PATH + " = ?",
+        new String[]{folder},
+        MediaStore.Audio.Media.DATE_ADDED + " DESC")) {
+      if (cursor != null) {
+        int nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME);
+        int sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE);
+        int dateCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED);
+        while (cursor.moveToNext()) {
+          JSONObject item = new JSONObject();
+          item.put("name", cursor.getString(nameCol));
+          item.put("size", cursor.getLong(sizeCol));
+          item.put("dateAdded", cursor.getLong(dateCol));
+          files.put(item);
+        }
+      }
+    } catch (Exception ignored) {
+      return "[]";
+    }
+    return files.toString();
   }
 
   @Override public void onCreate(Bundle savedInstanceState) {
