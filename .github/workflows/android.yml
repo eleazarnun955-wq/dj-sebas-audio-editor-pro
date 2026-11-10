@@ -49,7 +49,7 @@ jobs:
           python3 - <<'PY'
           import pathlib, re
           html = pathlib.Path("app/src/main/assets/index.html").read_text(encoding="utf-8")
-          match = re.search(r"(function estimateBpm\\(buffer\\)\\{.*?\\n \\})\\n async function decodeTrack", html, re.S)
+          match = re.search(r"(function estimateBpm\(buffer\)\{.*?\n \})\n async function decodeTrack", html, re.S)
           if not match:
               raise SystemExit("Could not extract estimateBpm from the app")
           harness = r"""
