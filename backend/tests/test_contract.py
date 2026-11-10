@@ -15,7 +15,9 @@ class BackendContractTests(unittest.TestCase):
         self.assertEqual(request.vocal_language, "es")
 
     def test_generation_requires_prompt_or_lyrics_at_endpoint(self):
-        with patch.object(main, "ACE_STEP_BASE_URL", "https://provider.invalid"):
+        with patch.object(main, "BACKEND_TOKEN", "test-token"), patch.object(
+            main, "ACE_STEP_BASE_URL", "https://provider.invalid"
+        ):
             client = TestClient(app)
             response = client.post(
                 "/api/music/generate",
