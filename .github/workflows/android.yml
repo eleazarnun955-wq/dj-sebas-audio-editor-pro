@@ -44,6 +44,40 @@ jobs:
               subprocess.run(["node", "--check", str(path)], check=True)
           print(f"Validated {len(scripts)} inline script blocks.")
           PY
+      - name: Test BPM estimator with synthetic audio
+        run: |
+          python3 - <<'PY'
+          import pathlib, re
+          html = pathlib.Path("app/src/main/assets/index.html").read_text(encoding="utf-8")
+          match = re.search(r"(function estimateBpm\\(buffer\\)\\{.*?\\n \\})\\n async function decodeTrack", html, re.S)
+          if not match:
+              raise SystemExit("Could not extract estimateBpm from the app")
+          harness = r"""
+          const estimateBpm = FUNCTION;
+          const sr = 44100;
+          function fakeBuffer(bpm, duration = 18) {
+            const data = new Float32Array(Math.floor(sr * duration));
+            const period = sr * 60 / bpm;
+            for (let beat = 0; beat < duration * bpm / 60; beat++) {
+              const start = Math.floor(beat * period);
+              for (let j = 0; j < 700 && start + j < data.length; j++)
+                data[start + j] = 0.9 * Math.exp(-j / 100);
+            }
+            return { sampleRate: sr, getChannelData: () => data };
+          }
+          for (const expected of [100, 120, 140]) {
+            const result = estimateBpm(fakeBuffer(expected));
+            if (!result || Math.abs(result.bpm - expected) > 3 || result.confidence < 0.12)
+              throw new Error("BPM test failed for " + expected + ": " + JSON.stringify(result));
+            console.log("PASS", expected, "BPM ->", result.bpm, "confidence", result.confidence);
+          }
+          const silence = { sampleRate: sr, getChannelData: () => new Float32Array(sr * 18) };
+          if (estimateBpm(silence) !== null) throw new Error("Silence must not produce a BPM estimate");
+          console.log("PASS silence rejected");
+          """
+          pathlib.Path("/tmp/test-bpm.js").write_text(harness.replace("FUNCTION", match.group(1)), encoding="utf-8")
+          PY
+          node /tmp/test-bpm.js
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
       - name: Verify APK exists
