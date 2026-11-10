@@ -1,6 +1,13 @@
 name: Build DJ SEBAS AUDIO EDITOR PRO APK
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'app/**'
+      - '*.gradle'
+      - 'gradle.properties'
+      - '.github/workflows/android.yml'
   push:
     branches: [ main ]
     paths:
