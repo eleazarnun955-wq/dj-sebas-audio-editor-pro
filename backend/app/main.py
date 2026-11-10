@@ -92,9 +92,9 @@ async def models() -> dict[str, Any]:
 
 @app.post("/api/music/generate", dependencies=[Depends(require_app_token)])
 async def generate(request: GenerateRequest) -> dict[str, Any]:
-    require_provider()
     if not request.prompt.strip() and not request.lyrics.strip():
         raise HTTPException(status_code=422, detail="Describe the song or provide lyrics")
+    require_provider()
     prompt = request.prompt.strip()
     if request.genre.strip():
         prompt = f"{prompt}, genre: {request.genre.strip()}".strip(", ")
