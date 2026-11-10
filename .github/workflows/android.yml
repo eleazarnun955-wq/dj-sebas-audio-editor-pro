@@ -78,6 +78,10 @@ jobs:
           pathlib.Path("/tmp/test-bpm.js").write_text(harness.replace("FUNCTION", match.group(1)), encoding="utf-8")
           PY
           node /tmp/test-bpm.js
+      - name: Test music generation backend adapter
+        run: |
+          python3 -m pip install -r backend/requirements.txt
+          PYTHONPATH=backend python3 -m unittest discover -s backend/tests -v
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
       - name: Verify APK exists
