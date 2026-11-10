@@ -4,8 +4,8 @@ android {
     namespace 'com.djsebas.audioeditor'
     compileSdk 35
     defaultConfig {
-        // Paquete nuevo e independiente: conserva instalada la edición MP3 2 anterior.
-        applicationId 'com.djsebas.producciones'
+        // Identificador exclusivo para instalar esta edición junto a las demás apps DJ Sebas.
+        applicationId 'com.djsebas.producciones.editor.v2'
         minSdk 23
         targetSdk 35
         versionCode 1
