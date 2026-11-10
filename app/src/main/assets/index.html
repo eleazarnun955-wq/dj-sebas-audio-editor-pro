@@ -146,26 +146,26 @@ const saveBtn=document.createElement('button');saveBtn.className='export';saveBt
      queueEncoded(encoder.encodeBuffer(l,r));
    }
  }
- async function renderSolo(b,offset,duration){
+ async function renderSolo(b,offset,duration,tempo=1){
    if(duration<=0.02)return;
    const chunkSeconds=30;
    for(let position=0;position<duration;position+=chunkSeconds){
      const partDuration=Math.min(chunkSeconds,duration-position);
      const off=new OfflineAudioContext(2,Math.max(1,Math.ceil(partDuration*sampleRate)),sampleRate);
      const src=off.createBufferSource();src.buffer=b;src.connect(off.destination);
-     src.start(0,offset+position,partDuration);
+     src.playbackRate.value=tempo;src.start(0,(offset+position)*tempo,partDuration*tempo);
      appendRenderedAudio(await off.startRendering());
    }
  }
- async function renderCrossfade(a,b,duration){
+ async function renderCrossfade(a,b,duration,tempoA=1,tempoB=1){
    if(duration<=0.02)return;
    const off=new OfflineAudioContext(2,Math.max(1,Math.ceil(duration*sampleRate)),sampleRate);
    const sa=off.createBufferSource(),ga=off.createGain(),sb=off.createBufferSource(),gb=off.createGain();
-   sa.buffer=a;sb.buffer=b;
+   sa.buffer=a;sb.buffer=b;sa.playbackRate.value=tempoA;sb.playbackRate.value=tempoB;
    ga.gain.setValueAtTime(1,0);ga.gain.linearRampToValueAtTime(0,duration);
    gb.gain.setValueAtTime(0,0);gb.gain.linearRampToValueAtTime(1,duration);
    sa.connect(ga).connect(off.destination);sb.connect(gb).connect(off.destination);
-   sa.start(0,Math.max(0,a.duration-duration),duration);sb.start(0,0,duration);
+   sa.start(0,Math.max(0,a.duration-duration*tempoA),duration*tempoA);sb.start(0,0,duration*tempoB);
    appendRenderedAudio(await off.startRendering());
  }
  function startStreamSave(name){
@@ -184,9 +184,29 @@ const saveBtn=document.createElement('button');saveBtn.className='export';saveBt
    if(saveStarted&&window.AndroidExport&&typeof AndroidExport.abortMp3==='function')try{AndroidExport.abortMp3()}catch(e){}
    saveStarted=false;pendingParts=[];pendingSize=0;
  }
+ function trimMixSilence(buffer){
+   const channels=buffer.numberOfChannels,rate=buffer.sampleRate,window=Math.max(1,Math.floor(rate*.1)),threshold=.002,minWindows=8;
+   const length=buffer.length;let first=0,last=Math.ceil(length/window)-1;
+   const loud=w=>{const a=w*window,b=Math.min(length,a+window);let sum=0;for(let i=a;i<b;i++){let peak=0;for(let c=0;c<channels;c++)peak=Math.max(peak,Math.abs(buffer.getChannelData(c)[i]));sum+=peak*peak;}return Math.sqrt(sum/Math.max(1,b-a))>threshold;};
+   let lead=0;while(lead<=last&&!loud(lead))lead++;
+   let tail=0;while(last-tail>=lead&&!loud(last-tail))tail++;
+   if(lead>=minWindows||tail>=minWindows){
+     const pad=Math.floor(rate*.2),start=lead>=minWindows?Math.max(0,lead*window-pad):0,end=tail>=minWindows?Math.min(length,(last-tail+1)*window+pad):length;
+     if(end-start>rate){const out=new AudioBuffer({length:end-start,numberOfChannels:channels,sampleRate:rate});for(let c=0;c<channels;c++)out.copyToChannel(buffer.getChannelData(c).subarray(start,end),c);return out;}
+   }
+   return buffer;
+ }
+ function detectMixBpm(buffer){
+   const data=buffer.getChannelData(0),rate=buffer.sampleRate,step=Math.max(1,Math.floor(rate/100)),env=[];
+   for(let i=0;i<data.length;i+=step){let sum=0,n=Math.min(step,data.length-i);for(let j=0;j<n;j++)sum+=Math.abs(data[i+j]);env.push(sum/n);}
+   const onset=new Float32Array(env.length);for(let i=1;i<env.length;i++)onset[i]=Math.max(0,env[i]-env[i-1]);
+   let best=0,scoreBest=0;
+   for(let bpm=70;bpm<=180;bpm++){const lag=Math.round(6000/bpm);let score=0;for(let i=lag;i<onset.length;i++)score+=onset[i]*onset[i-lag];if(score>scoreBest){scoreBest=score;best=bpm;}}
+   return best;
+ }
  async function decodeTrack(file,audioCtx,index,total){
    sayMix('Decodificando canción '+index+' de '+total+'…');
-   return await audioCtx.decodeAudioData(await file.arrayBuffer());
+   return trimMixSilence(await audioCtx.decodeAudioData(await file.arrayBuffer()));
  }
  button.addEventListener('click',async()=>{
    if(!selected.length)return sayMix('Selecciona al menos una canción');
@@ -199,30 +219,34 @@ const saveBtn=document.createElement('button');saveBtn.className='export';saveBt
      const safe='DJ_SEBAS_MIX_TERMINADO_'+new Date().toISOString().replace(/[:.]/g,'-')+'.mp3';
      const path=startStreamSave(safe);
      const cross=Number($('mixCross').value)||4;
-     let totalDuration=0,incomingFade=0;
+     let totalDuration=0,incomingFade=0,targetBpm=0,currentTempo=1;
      let current=await decodeTrack(selected[0],audioCtx,1,selected.length);
+     targetBpm=detectMixBpm(current)||0;
      totalDuration+=current.duration;
      if(totalDuration>5400)throw new Error('El mix supera el límite seguro de 90 minutos');
      for(let i=1;i<selected.length;i++){
-       const next=await decodeTrack(selected[i],audioCtx,i+1,selected.length);
-       totalDuration+=next.duration;
+       let next=await decodeTrack(selected[i],audioCtx,i+1,selected.length);
+       const nextBpm=detectMixBpm(next)||0;
+       let nextTempo=1;
+       if(targetBpm>0&&nextBpm>0)nextTempo=Math.max(.92,Math.min(1.08,targetBpm/nextBpm));
+       totalDuration+=next.duration/nextTempo;
        if(totalDuration>5400)throw new Error('El mix supera el límite seguro de 90 minutos');
-       const fade=Math.min(cross,current.duration*.2,next.duration*.2);
-       const soloDuration=current.duration-incomingFade-fade;
+       const fade=Math.min(cross,current.duration/currentTempo*.2,next.duration/nextTempo*.2);
+       const soloDuration=current.duration/currentTempo-incomingFade-fade;
        if(soloDuration>0.02){
-         sayMix('Procesando tramo '+i+' de '+selected.length+'…');
-         await renderSolo(current,incomingFade,soloDuration);
+         sayMix('Procesando canción '+i+' de '+selected.length+' con BPM '+(targetBpm||'—')+'…');
+         await renderSolo(current,incomingFade*currentTempo,soloDuration,currentTempo);
        }
-       sayMix('Aplicando transición '+i+' de '+(selected.length-1)+'…');
-       await renderCrossfade(current,next,fade);
-       current=next;incomingFade=fade;
+       sayMix('Sincronizando '+(nextBpm||'BPM no detectado')+' BPM · transición sin pausas '+i+' de '+(selected.length-1)+'…');
+       await renderCrossfade(current,next,fade,currentTempo,nextTempo);
+       current=next;currentTempo=nextTempo;incomingFade=fade;
      }
-     const lastDuration=current.duration-incomingFade;
-     if(lastDuration>0.02){sayMix('Procesando última canción…');await renderSolo(current,incomingFade,lastDuration);}
+     const lastDuration=current.duration/currentTempo-incomingFade;
+     if(lastDuration>0.02){sayMix('Procesando última canción…');await renderSolo(current,incomingFade*currentTempo,lastDuration,currentTempo);}
      const tail=encoder.flush();queueEncoded(tail);
      const savedPath=finishStreamSave();
      encoder=null;
-     sayMix('¡MIX TERMINADO! '+selected.length+' canciones · '+Math.floor((totalDuration/60))+' min aprox. · Guardado en '+savedPath);
+     sayMix('¡MIX TERMINADO! '+selected.length+' canciones · transiciones BPM sincronizadas, sin silencios largos · '+Math.floor((totalDuration/60))+' min aprox. · Guardado en '+savedPath);
      button.textContent='✓ MIX TERMINADO · CREAR OTRO';
    }catch(e){
      abortStreamSave();encoder=null;
