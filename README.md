@@ -1,52 +1,44 @@
 # DJ SEBAS PRODUCCIONES
 
-Aplicación Android independiente cuyo producto objetivo es un estudio de creación musical con IA, inspirado en el flujo de trabajo de Suno, más herramientas DJ avanzadas. **No es solamente un editor local ni una aplicación de mezclas.**
+Aplicación Android independiente para editar, mezclar y organizar audio local desde el teléfono. Esta entrega prioriza herramientas que funcionan sin suscripciones, servidores externos ni servicios de generación musical.
 
-## Objetivo del producto
+## Alcance de esta versión
 
-### 1. Creación musical con IA (función principal)
-- Generar canciones completas desde descripciones en lenguaje natural.
-- Crear canciones a partir de letras propias, con estructura de versos, coros y puentes.
-- Elegir género, subgénero, instrumentación, ambiente, tempo, tonalidad e idioma vocal.
-- Generar canciones instrumentales o con voz cantada.
-- Crear variaciones, transformar el estilo de una pista, editar secciones y extender canciones.
-- Guardar generaciones, versiones, letras y metadatos en una biblioteca de proyectos.
+### Herramientas de audio local
+- Importar y reproducir archivos de audio compatibles.
+- Visualizar la forma de onda.
+- Recortar y exportar selecciones en MP3.
+- Exportar canciones completas a MP3.
+- Grabar voz cuando el dispositivo concede permiso de micrófono.
+- Ecualizador de graves, medios y agudos durante la reproducción.
+- Mezclar dos pistas con controles de volumen independientes.
+- Fusionar y dividir audio con las herramientas disponibles en la app.
+- Efectos de reproducción, procesamiento básico y masterización local.
+- Biblioteca local, favoritos y proyectos guardados en el dispositivo.
+- Consultar exportaciones guardadas.
 
-### 2. Estudio DJ inteligente (función complementaria)
-- Mashup inteligente de varias canciones.
-- Análisis de BPM, tonalidad y estructura musical.
-- Alineación rítmica y transiciones con crossfade y ajuste de tempo cuando el motor lo permita.
-- Herramientas de mezcla, efectos, edición, masterización y exportación.
+### Mix de varias canciones
+- Selección de hasta 20 canciones y ajuste del orden.
+- Exportación MP3 por bloques directamente a `Music/DJ SEBAS PRODUCCIONES`.
+- Estimación aproximada de BPM para decidir si conviene ajustar la duración del fundido.
+- Cuando no hay una lectura fiable o los tempos no son compatibles, usa un fundido convencional.
 
-### 3. Archivos y exportación
-- Exportar audio MP3 al dispositivo Android.
-- Guardar las exportaciones en `Music/DJ SEBAS PRODUCCIONES`.
-- Mantener esta aplicación y su paquete Android independientes de DJ SEBAS AI MUSIC STUDIO PRO 3.0.
+**Límite importante:** no es beatmatching profesional. Esta versión no implementa time-stretch, análisis de tonalidad ni alineación precisa de beats/fase. Por eso la función se presenta como mix con transiciones automáticas, no como mashup inteligente profesional.
 
-## Estado real de esta rama
+## Generación musical con IA
 
-La compilación inicial contiene una interfaz Android/WebView y herramientas locales de audio: importar/reproducir, recortar y exportar MP3, más una primera implementación de mashup con análisis aproximado de BPM y transiciones por fundido.
+Se deja fuera de esta entrega. Las opciones gratuitas encontradas son demos web con cuotas compartidas o servicios externos que no garantizan una API gratuita estable para integrar en la APK. No se conectará un servidor de pago ni se simulará generación de canciones. Se podrá reconsiderar en otra versión si existe una opción realmente gratuita y estable.
 
-**Todavía no está integrado un motor de generación musical con IA.** Las pantallas de creación, letras y estilos no deben anunciarse como generación funcional hasta que el backend produzca audio real y la app pueda recuperar, reproducir y guardar ese resultado. Tampoco debe describirse el mashup actual como beatmatching profesional: aún no implementa time-stretch ni alineación precisa de beats/fase.
+## Exportación y compatibilidad
+- Las exportaciones se guardan en `Music/DJ SEBAS PRODUCCIONES`.
+- El paquete Android es `com.djsebas.producciones`, independiente de DJ SEBAS AI MUSIC STUDIO PRO 3.0.
+- La compilación de depuración se genera con GitHub Actions.
 
-## Arquitectura prevista para IA real
+## Verificación pendiente antes de entregar como versión final
+1. Compilar APK desde el commit final.
+2. Revisar que todas las herramientas mostradas respondan sin errores.
+3. Probar importación, reproducción, recorte y exportación MP3 en Android físico.
+4. Probar mezcla de dos pistas, transiciones de varias canciones y exportación larga.
+5. Verificar permisos, guardado en la carpeta dedicada y reinstalación independiente.
 
-- La app Android consume una API de backend mediante HTTPS.
-- El backend administra tareas asíncronas de generación, estados, errores y URLs/archivos de audio.
-- Las credenciales de proveedores/modelos se guardan únicamente como secretos del backend; nunca en el APK, HTML, repositorio ni logs.
-- La interfaz debe distinguir claramente entre generación en cola, en proceso, completada y fallida.
-- El adaptador de proveedor debe permitir cambiar de motor sin rehacer la interfaz.
-- Antes de habilitar un proveedor se verifican licencia, derechos de uso, coste, límites, idiomas, generación vocal, duración, edición/extensión y disponibilidad de infraestructura GPU.
-
-## Criterios para considerar lista la generación IA
-
-1. Una descripción de texto genera un archivo musical real.
-2. Letras introducidas por el usuario producen una canción cantada; la app muestra errores reales si el proveedor no puede cumplirlo.
-3. La app consulta el estado de tareas y recupera el audio generado.
-4. El usuario puede escuchar, guardar, renombrar y volver a abrir el resultado.
-5. Se prueban fallos de red, tareas fallidas, cancelación y exportaciones incompletas.
-6. Ninguna función se marca como lista basándose únicamente en una pantalla o botón.
-
-## Compilación
-
-El APK de depuración se construye con GitHub Actions desde esta rama. El paquete Android independiente está configurado como `com.djsebas.producciones`.
+Una compilación correcta de GitHub Actions no sustituye las pruebas en un teléfono real.
